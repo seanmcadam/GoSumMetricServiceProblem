@@ -15,11 +15,16 @@ import (
 //
 // This assumes that two calls will not be made on the same nanosecond, good enough for govt work...
 //
-
+// Keys are set to live for 3600 seconds (1 Hour)
+// RunKeyCleanupSeconds runs 5 seconds after the keys should expire, always garunteeing that a key does not happen the be deleted early.
+//
+//
+// Global Data Storage for the key and time stamps
+//
 var Key = make(map[string]map[int64]int)
 
-const Debugging bool = true
-const TimeWindowSec int64 = 10
+const Debugging bool = false
+const TimeWindowSec int64 = 3600
 const TimeWindowNsec int64 = TimeWindowSec * 1000000000
 const RunKeyCleanSeconds time.Duration = ( time.Duration(TimeWindowSec) * time.Second ) + 5;
 
@@ -36,6 +41,8 @@ func main() {
 	//
 	// Extra handlers to neaten things up and help with debugging
 	//
+	web.Post("/print", key_print_handle)
+	web.Get("/print", key_print_handle)
 	web.Post("/cleanup", key_cleanup_handle)
 	web.Get("/cleanup", key_cleanup_handle)
 	web.Post("(.*)", bad_uri_handle)
@@ -136,6 +143,7 @@ func metric_post_handle( ctx *web.Context, key string) string {
 
 	if Debugging { print_keys() }
 
+	// Just some fun stuff...
 	ctx.SetHeader("X-Powered-By", "superduperwebmanagementool", true)
 	ctx.SetHeader("Connection", "close", true)
 
@@ -160,7 +168,17 @@ func bad_uri_handle( ctx *web.Context, val string) string {
 // -----------------------------------------------------------------------------
 func key_cleanup_handle( ctx *web.Context) string { 
 
-	key_cleanup()
+	go key_cleanup()
+	return "{}"
+} 
+
+// -----------------------------------------------------------------------------
+//
+//
+// -----------------------------------------------------------------------------
+func key_print_handle( ctx *web.Context) string { 
+
+	go print_keys()
 	return "{}"
 } 
 
@@ -169,9 +187,6 @@ func key_cleanup_handle( ctx *web.Context) string {
 //
 //
 // -----------------------------------------------------------------------------
-//
-// It is better to run one at a time...
-//
 func auto_key_cleanup () {
 
 	for true {
@@ -184,14 +199,24 @@ func auto_key_cleanup () {
 
 // -----------------------------------------------------------------------------
 //
+// Future option would be to add in a counter of entries for each key and
+// remove keys with 0 times stored in them. Not a huge efficiency thing unless
+// there are going to be thousands upon thousands of keys accumulating...
+// Would depend on the use case...
 //
 // -----------------------------------------------------------------------------
 func key_cleanup () {
 
+	//
+	// Calculate the oldest time that should be kept
+	//
 	TimeWindow := get_now_nsec() - TimeWindowNsec
 
 	if Debugging { fmt.Println( "key_cleanup" ) }
 
+	// 
+ 	// itterate over each key, then itterate over each time and delete times that have expired
+	//
 	for k, tmap := range Key {
 		for t, _ := range tmap {
 			if( t < TimeWindow ) {
@@ -218,20 +243,16 @@ func get_now_nsec() int64 {
 //
 // Debugging functions
 //
-
-
 // -----------------------------------------------------------------------------
 //
 //
 // -----------------------------------------------------------------------------
 func print_keys () {
 
-	if Debugging {
-		for k, tmap := range Key {
-			fmt.Println( "PrintKey ", k );
-			for t, v := range tmap {
-			fmt.Println( "\t", t, ": ", v );
-			}
+	for k, tmap := range Key {
+		fmt.Println( "PrintKey ", k );
+		for t, v := range tmap {
+		fmt.Println( "\t", t, ": ", v );
 		}
 	}
 }

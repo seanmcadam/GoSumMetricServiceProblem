@@ -93,7 +93,7 @@ func metric_get_handle( ctx *web.Context, key string) string {
 	if Debugging { print_keys() }
 
 	valuestring := strconv.Quote("value")
-	return strings.Join( []string{ "{ ", valuestring, ": ", strconv.Itoa( returnval ), " }"}, "" )
+	return strings.Join( []string{ "{\n  ", valuestring, ": ", strconv.Itoa( returnval ), "\n}"}, "" )
 } 
 
 
